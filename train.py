@@ -1,7 +1,11 @@
 # Created by Sijmen van der Willik
 # 07/10/2020 11:19
+#
+# Github: https://github.com/sijmenw/udacity-data-science-capstone
 
 import os
+import datetime
+import argparse
 
 import numpy as np
 import pandas as pd
@@ -25,6 +29,8 @@ def load_stocks(tickers, date_range=None):
         data.append(df)
 
     df = pd.concat(data)
+
+    df['Date'] = pd.to_datetime(df['Date'])
 
     if date_range:
         df = df[(df['Date'] >= date_range[0]) & (df['Date'] <= date_range[1])]
@@ -119,13 +125,13 @@ def train_model(X_train, y_train):
 
 
 def inverse_scale_col(scaler, arr):
-    m_ = np.zeros((arr.shape[0], scalers['googl.us'].min_.shape[0]))
+    m_ = np.zeros((arr.shape[0], scaler.min_.shape[0]))
     m_[:, 0] = arr[:, 0]
     m_ = scaler.inverse_transform(m_)
     return m_[:, 0]
 
 
-def save_plots(model, X_test, ticker_data, n_days=14):
+def save_plots(model, X_test, y_test, ticker_data, scalers, n_days=14):
     """Generate predictions on test set and create plots"""
     for ticker in ticker_data:
         # find first entry of ticker in test data
@@ -138,8 +144,10 @@ def save_plots(model, X_test, ticker_data, n_days=14):
 
         fig = plt.figure(figsize=(16, 10))
         sc = scalers[ticker['name']]
-        plt.plot(inverse_scale_col(sc, y_pred), color='green', label="predicted stock price")
-        plt.plot(inverse_scale_col(sc, y_test[start:start + n_days]), color='black', label="actual stock price")
+        plt.plot(inverse_scale_col(sc, y_pred), color='green',
+                 label="predicted stock price")
+        plt.plot(inverse_scale_col(sc, y_test[start:start + n_days]), color='black',
+                 label="actual stock price")
         plt.title(f"{ticker['name']} Stock Price Prediction")
         plt.xlabel('Time')
         plt.ylabel(f"{ticker['name']} Stock Price")
@@ -147,14 +155,50 @@ def save_plots(model, X_test, ticker_data, n_days=14):
         fig.savefig(f"stock_predictions_{ticker['name']}.png")
 
 
-if __name__ == "__main__":
-    stock_list = os.listdir("./data/stocks")
-    df = load_stocks(['googl.us', 'aapl.us'])
+def train(tickers, date_range):
+    df = load_stocks(tickers, date_range=date_range)
 
     X_train, y_train, X_test, y_test, ticker_data, scalers = prepare_data(df)
 
     regressor = train_model(X_train, y_train)
 
-    save_plots(regressor, X_test, ticker_data)
-
     regressor.save("regressor_model")
+
+    save_plots(regressor, X_test, y_test, ticker_data, scalers)
+
+
+def parse_date(date_str):
+    return datetime.datetime.strptime(date_str, "%d-%M-%Y")
+
+
+# Create the parser
+parser = argparse.ArgumentParser(description='Train a LSTM network on up to 5 tickers and a selected date range')
+parser.add_argument('--tickers', '-t', type=str,
+                    help='tickers to train on, separated by commas')
+parser.add_argument('--dates', '-d', type=str,
+                    help='start and end date for training data selection, separated by a comma')
+
+
+if __name__ == "__main__":
+    # Execute the parse_args() method
+    args = parser.parse_args()
+    print("Got args:", args)
+
+    if args.tickers is None:
+        tickers = ['googl.us', 'aapl.us']
+        print("Using default tickers:", tickers)
+    else:
+        tickers = args.tickers.split(",")
+        print("Using tickers:", tickers)
+
+    if args.dates is None:
+        start_date = '01-01-2015'
+        end_date = '01-07-2017'
+        date_range = parse_date(start_date), parse_date(end_date)
+        print("Using default date range:", date_range)
+    else:
+        start_date, end_date = args.dates.split(",")
+        date_range = parse_date(start_date), parse_date(end_date)
+        print("Using date range:", date_range)
+
+    train(tickers, date_range)
