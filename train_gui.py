@@ -26,6 +26,7 @@ layout = [[sg.Text('Select stocks (up to 5)')],
           [],
           [sg.Text('Training start date (dd-mm-yyyy): '), sg.InputText(default_text="01-01-2015", key='start_date')],
           [sg.Text('Training end date (dd-mm-yyyy): '), sg.InputText(default_text="01-07-2017", key='end_date')],
+          # TODO ADD # EPOCHS HERE
           [sg.Button('Train!'), sg.Button('Exit')]]
 
 # create the Window

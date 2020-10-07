@@ -6,6 +6,8 @@
 import os
 import datetime
 import argparse
+import time
+import json
 
 import numpy as np
 import pandas as pd
@@ -131,7 +133,7 @@ def inverse_scale_col(scaler, arr):
     return m_[:, 0]
 
 
-def save_plots(model, X_test, y_test, ticker_data, scalers, n_days=14):
+def save_plots(model, X_test, y_test, ticker_data, scalers, target_dir, n_days=14):
     """Generate predictions on test set and create plots"""
     for ticker in ticker_data:
         # find first entry of ticker in test data
@@ -152,19 +154,72 @@ def save_plots(model, X_test, y_test, ticker_data, scalers, n_days=14):
         plt.xlabel('Time')
         plt.ylabel(f"{ticker['name']} Stock Price")
         plt.legend()
-        fig.savefig(f"stock_predictions_{ticker['name']}.png")
+        fig.savefig(os.path.join(target_dir, f"stock_predictions_{ticker['name']}.png"))
+
+
+def save_log(tickers, date_range, start_time, metrics, target_dir):
+    out = {
+        'tickers': tickers,
+        'start_date': date_range[0].strftime("%Y-%m-%d"),
+        'end_date': date_range[1].strftime("%Y-%m-%d"),
+        'start_time': start_time,
+        'total_time': time.time() - start_time,
+        'metrics': metrics
+    }
+
+    with open(os.path.join(target_dir, "train.log"), 'w') as f:
+        f.write(json.dumps(out))
+
+
+def evaluate_model(model, X_test, y_test, ticker_data, scalers, n_days=14):
+    """Evaluates the model
+
+    Calculates the following metrics for the first n_days days for each ticker
+     - err
+     - MAPE
+
+    :return: metrics
+    """
+    metrics = {}
+
+    for ticker in ticker_data:
+        # find first entry of ticker in test data
+        for idx, seq in enumerate(X_test):
+            m = seq[0, ticker['idx']]
+            if m == 1:
+                start = idx
+                break
+        y_pred = model.predict(X_test[start:start + n_days])
+
+        sc = scalers[ticker['name']]
+        y_pred = inverse_scale_col(sc, y_pred)
+        y = inverse_scale_col(sc, y_test[start:start + n_days])
+
+        metrics['ticker'] = {
+            'err': [float(x) for x in list(y_pred - y)],
+            'MAPE': [float(x) for x in list(np.abs(y_pred - y) / y)]
+        }
+
+    return metrics
 
 
 def train(tickers, date_range):
+    start_time = time.time()
     df = load_stocks(tickers, date_range=date_range)
 
     X_train, y_train, X_test, y_test, ticker_data, scalers = prepare_data(df)
 
     regressor = train_model(X_train, y_train)
 
-    regressor.save("regressor_model")
+    metrics = evaluate_model(regressor, X_test, y_test, ticker_data, scalers)
 
-    save_plots(regressor, X_test, y_test, ticker_data, scalers)
+    # create target dir for output
+    target_dir = os.path.join("output", str(int(time.time()*1000)))
+    os.makedirs(target_dir, exist_ok=True)
+
+    regressor.save(os.path.join(target_dir, "regressor_model"))
+    save_plots(regressor, X_test, y_test, ticker_data, scalers, target_dir)
+    save_log(tickers, date_range, start_time, metrics, target_dir)
 
 
 def parse_date(date_str):
