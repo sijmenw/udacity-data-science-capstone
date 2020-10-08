@@ -23,10 +23,12 @@ layout = [[sg.Text('Select stocks (up to 5)')],
           [sg.Text('Select stock: '), sg.Combo(ticker_names, key='stock3')],
           [sg.Text('Select stock: '), sg.Combo(ticker_names, key='stock4')],
           [sg.Text('Select stock: '), sg.Combo(ticker_names, key='stock5')],
-          [],
+          [sg.Text('_'*30)],
           [sg.Text('Training start date (dd-mm-yyyy): '), sg.InputText(default_text="01-01-2015", key='start_date')],
           [sg.Text('Training end date (dd-mm-yyyy): '), sg.InputText(default_text="01-07-2017", key='end_date')],
-          # TODO ADD # EPOCHS HERE
+          [sg.Text('_'*30)],
+          [sg.Text('Number of training epochs: '), sg.InputText(default_text="60", key='epochs')],
+          [sg.Text('_'*30)],
           [sg.Button('Train!'), sg.Button('Exit')]]
 
 # create the Window
@@ -47,7 +49,8 @@ while True:
     if event == "Train!":
         subprocess.Popen(["python", "train.py",
                           "--tickers", ",".join(tickers),
-                          "--dates", f"{values['start_date']},{values['end_date']}"])
-
+                          "--dates", f"{values['start_date']},{values['end_date']}",
+                          "--epochs", str(values['epochs'])])
+        window.close()
 
 window.close()

@@ -16,8 +16,9 @@ from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import LSTM
 from keras.layers import Dropout
-
 import matplotlib.pyplot as plt
+
+import reporting
 
 
 def load_stocks(tickers, date_range=None):
@@ -101,7 +102,7 @@ def prepare_data(df, test_fraction=0.2):
     return X_train, y_train, X_test, y_test, ticker_data, scalers
 
 
-def train_model(X_train, y_train):
+def train_model(X_train, y_train, epochs):
     """Creates and trains LSTM regressor model"""
     regressor = Sequential()
 
@@ -121,12 +122,18 @@ def train_model(X_train, y_train):
 
     regressor.compile(optimizer='adam', loss='mean_squared_error')
 
-    regressor.fit(X_train, y_train, epochs=60, batch_size=32)
+    regressor.fit(X_train, y_train, epochs=epochs, batch_size=32)
 
     return regressor
 
 
 def inverse_scale_col(scaler, arr):
+    """Use a scaler to invert a single column, even if scaler expects a different shape
+
+    :param scaler: <sklearn scaler>
+    :param arr:
+    :return:
+    """
     m_ = np.zeros((arr.shape[0], scaler.min_.shape[0]))
     m_[:, 0] = arr[:, 0]
     m_ = scaler.inverse_transform(m_)
@@ -157,14 +164,16 @@ def save_plots(model, X_test, y_test, ticker_data, scalers, target_dir, n_days=1
         fig.savefig(os.path.join(target_dir, f"stock_predictions_{ticker['name']}.png"))
 
 
-def save_log(tickers, date_range, start_time, metrics, target_dir):
+def save_log(tickers, date_range, start_time, metrics, epochs, target_dir):
+    """Save a log about the training session"""
     out = {
         'tickers': tickers,
         'start_date': date_range[0].strftime("%Y-%m-%d"),
         'end_date': date_range[1].strftime("%Y-%m-%d"),
         'start_time': start_time,
         'total_time': time.time() - start_time,
-        'metrics': metrics
+        'metrics': metrics,
+        'epochs': epochs
     }
 
     with open(os.path.join(target_dir, "train.log"), 'w') as f:
@@ -195,7 +204,7 @@ def evaluate_model(model, X_test, y_test, ticker_data, scalers, n_days=14):
         y_pred = inverse_scale_col(sc, y_pred)
         y = inverse_scale_col(sc, y_test[start:start + n_days])
 
-        metrics['ticker'] = {
+        metrics[ticker['name']] = {
             'err': [float(x) for x in list(y_pred - y)],
             'MAPE': [float(x) for x in list(np.abs(y_pred - y) / y)]
         }
@@ -203,13 +212,25 @@ def evaluate_model(model, X_test, y_test, ticker_data, scalers, n_days=14):
     return metrics
 
 
-def train(tickers, date_range):
+def train(tickers, date_range, epochs):
+    """The main function
+
+    Calls functions for the following steps:
+     - Create and train an LSTM model
+     - Evaluate model
+     - create and save plots and log
+
+    :param tickers: <list> ticker names corresponding to dataset
+    :param date_range: <tuple of len 2> holds two datetime objects, start and end date
+    :param epochs: <int> number of epochs to train for
+    :return:
+    """
     start_time = time.time()
     df = load_stocks(tickers, date_range=date_range)
 
     X_train, y_train, X_test, y_test, ticker_data, scalers = prepare_data(df)
 
-    regressor = train_model(X_train, y_train)
+    regressor = train_model(X_train, y_train, epochs)
 
     metrics = evaluate_model(regressor, X_test, y_test, ticker_data, scalers)
 
@@ -219,7 +240,7 @@ def train(tickers, date_range):
 
     regressor.save(os.path.join(target_dir, "regressor_model"))
     save_plots(regressor, X_test, y_test, ticker_data, scalers, target_dir)
-    save_log(tickers, date_range, start_time, metrics, target_dir)
+    save_log(tickers, date_range, start_time, metrics, epochs, target_dir)
 
 
 def parse_date(date_str):
@@ -232,7 +253,8 @@ parser.add_argument('--tickers', '-t', type=str,
                     help='tickers to train on, separated by commas')
 parser.add_argument('--dates', '-d', type=str,
                     help='start and end date for training data selection, separated by a comma')
-
+parser.add_argument('--epochs', '-e', type=int, default=60,
+                    help='number of epochs to train for')
 
 if __name__ == "__main__":
     # Execute the parse_args() method
@@ -256,4 +278,5 @@ if __name__ == "__main__":
         date_range = parse_date(start_date), parse_date(end_date)
         print("Using date range:", date_range)
 
-    train(tickers, date_range)
+    train(tickers, date_range, args.epochs)
+    reporting.create_html_report()
