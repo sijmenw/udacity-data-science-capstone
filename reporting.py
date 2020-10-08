@@ -4,17 +4,12 @@ import datetime
 
 import numpy as np
 
+
 def generate_html(models):
     bootstrap = """
     <head>    
         <!-- Latest compiled and minified CSS -->
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
-
-        <!-- jQuery library -->
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-
-        <!-- Latest compiled JavaScript -->
-        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
 
         <style>
             td {
@@ -26,18 +21,33 @@ def generate_html(models):
             }
 
             h3 {
-              margin-top: 10px;
+              margin-top: 0px;
+            }
+            .row {
+              padding: 0.2em 0;
+            }
+            
+            .row-striped:nth-of-type(odd){
+              background-color: #efefef;
+            }
+            
+            .row-striped:nth-of-type(even){
+              background-color: #ffffff;
             }
         </style>
     </head>
     <body>
-    <h1>Trained models</h1>
+    <div class="row">
+        <div class="col-md-11 col-md-offset-1">
+            <h1>Trained models</h1>
+        </div>
+    </div>
     __models_html__
     </body>
     """
 
     base_model_html = """
-    <div class="row">
+    <div class="row row-striped">
         <div class="col-md-2 col-md-offset-1">
             <div class="row">
                 <h3>__model_name__</h3>
@@ -121,7 +131,6 @@ def generate_html(models):
     </div>
     """
 
-
     models_html = ""
 
     for model in models:
@@ -140,7 +149,6 @@ def generate_html(models):
             model_html = model_html.replace("__start_date__", models[model]['train_log']['start_date'], 1)
             model_html = model_html.replace("__end_date__", models[model]['train_log']['end_date'], 1)
             model_html = model_html.replace("__training_time__", str(round(models[model]['train_log']['total_time'], 1))+"s", 1)
-
 
             if 'epochs' in models[model]['train_log']:
                 model_html = model_html.replace("__epochs__", str(models[model]['train_log']['epochs']), 1)
@@ -171,7 +179,6 @@ def generate_html(models):
 
         models_html += model_html
 
-
     bootstrap = bootstrap.replace("__models_html__", models_html)
 
     report_fn = "models_report.html"
@@ -186,16 +193,13 @@ def create_html_report():
 
     models = {}
 
-    for model_name in os.listdir(src_dir):
+    for model_name in sorted(os.listdir(src_dir)):
         if model_name.startswith("."):
             continue
 
-        print(model_name)
         model_dict = {}
 
         model_dir = os.path.join(src_dir, model_name)
-
-        print(os.listdir(model_dir))
 
         with open(os.path.join(model_dir, "train.log")) as f:
             try:
@@ -206,4 +210,7 @@ def create_html_report():
         models[model_name] = model_dict
         
     generate_html(models)
-        
+
+
+if __name__ == "__main__":
+    create_html_report()
