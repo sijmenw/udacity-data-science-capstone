@@ -34,6 +34,8 @@ Requirements can be found in `requirements.txt` and installed using `pip install
 
 # Links
 
+Accompanying blog post can be found [here](https://medium.com/@sijmenvdw/using-an-lstm-for-stock-prediction-f395b72e6dcb).
+
 Stock market dataset from Kaggle [here](https://www.kaggle.com/borismarjanovic/price-volume-data-for-all-us-stocks-etfs)
 
 Read about a simple LSTM implementation on KDNugget [here](https://www.kdnuggets.com/2018/11/keras-long-short-term-memory-lstm-model-predict-stock-prices.html)
