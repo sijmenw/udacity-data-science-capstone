@@ -51,7 +51,6 @@ def prepare_data(df, test_fraction=0.2):
     Target is Open column
     """
     # one hot encoding for tickers
-    # TODO check if add skip_first helps
     tickers = df['ticker'].unique()
     df = pd.get_dummies(df, columns=['ticker'])
     tick_cols = [x for x in df.columns if 'ticker_' in x]
