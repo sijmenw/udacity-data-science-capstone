@@ -140,7 +140,7 @@ def inverse_scale_col(scaler, arr):
     return m_[:, 0]
 
 
-def save_plots(predictions):
+def save_plots(predictions, target_dir):
     """Generate predictions on test set and create plots"""
     for ticker in predictions:
         preds = predictions[ticker]
@@ -155,7 +155,7 @@ def save_plots(predictions):
         plt.xlabel('Time')
         plt.ylabel(f"{ticker} Stock Price")
         plt.legend()
-        fig.savefig(f"stock_predictions_{ticker}.png")
+        fig.savefig(os.path.join(target_dir, f"stock_predictions_{ticker}.png"))
 
 
 def save_log(tickers, date_range, start_time, metrics, preds, epochs, target_dir):
@@ -277,7 +277,7 @@ def train(tickers, date_range, epochs):
     os.makedirs(target_dir, exist_ok=True)
 
     regressor.save(os.path.join(target_dir, "regressor_model"))
-    save_plots(preds)
+    save_plots(preds, target_dir)
     save_log(tickers, date_range, start_time, metrics, preds, epochs, target_dir)
 
 
