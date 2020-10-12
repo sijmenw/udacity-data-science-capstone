@@ -140,32 +140,32 @@ def inverse_scale_col(scaler, arr):
     return m_[:, 0]
 
 
-def save_plots(model, X_test, y_test, ticker_data, scalers, target_dir, n_days=14):
+def save_plots(predictions):
     """Generate predictions on test set and create plots"""
-    for ticker in ticker_data:
-        # find first entry of ticker in test data
-        for idx, seq in enumerate(X_test):
-            m = seq[0, ticker['idx']]
-            if m == 1:
-                start = idx
-                break
-        y_pred = model.predict(X_test[start:start + n_days])
+    for ticker in predictions:
+        preds = predictions[ticker]
 
         fig = plt.figure(figsize=(16, 10))
-        sc = scalers[ticker['name']]
-        plt.plot(inverse_scale_col(sc, y_pred), color='green',
-                 label="predicted stock price")
-        plt.plot(inverse_scale_col(sc, y_test[start:start + n_days]), color='black',
-                 label="actual stock price")
-        plt.title(f"{ticker['name']} Stock Price Prediction")
+
+        plt.plot(preds['y_pred'], color='green', label="predicted stock price")
+        plt.plot(preds['y_flat'], color='lightblue', label="baseline prediction (flat) stock price")
+        plt.plot(preds['y_last'], color='blue', label="baseline prediction (linear) stock  price")
+        plt.plot(preds['y'], color='black', label="actual stock price")
+        plt.title(f"{ticker} Stock Price Prediction")
         plt.xlabel('Time')
-        plt.ylabel(f"{ticker['name']} Stock Price")
+        plt.ylabel(f"{ticker} Stock Price")
         plt.legend()
-        fig.savefig(os.path.join(target_dir, f"stock_predictions_{ticker['name']}.png"))
+        fig.savefig(f"stock_predictions_{ticker}.png")
 
 
-def save_log(tickers, date_range, start_time, metrics, epochs, target_dir):
+def save_log(tickers, date_range, start_time, metrics, preds, epochs, target_dir):
     """Save a log about the training session"""
+
+    # Make JSON serializable
+    for k in preds:
+        for e in preds[k]:
+            preds[k][e] = list(preds[k][e])
+
     out = {
         'tickers': tickers,
         'start_date': date_range[0].strftime("%Y-%m-%d"),
@@ -173,11 +173,29 @@ def save_log(tickers, date_range, start_time, metrics, epochs, target_dir):
         'start_time': start_time,
         'total_time': time.time() - start_time,
         'metrics': metrics,
+        'predictions': preds,
         'epochs': epochs
     }
 
-    with open(os.path.join(target_dir, "train.log"), 'w') as f:
+    target_fn = os.path.join(target_dir, "train.log")
+    print(f"Saving log to {target_fn} ...", end="")
+
+    with open(target_fn, 'w') as f:
         f.write(json.dumps(out))
+
+    print("Done")
+
+
+def base_predict(X_test, target_col=0):
+    """Emulates a model for baseline prediction"""
+    flat = []
+    last = []
+
+    for seq in X_test:
+        flat.append(seq[-1][target_col])
+        last.append(2 * seq[-1][target_col] - seq[-2][target_col])
+
+    return np.expand_dims(np.array(flat), axis=1), np.expand_dims(np.array(last), axis=1)
 
 
 def evaluate_model(model, X_test, y_test, ticker_data, scalers, n_days=14):
@@ -187,9 +205,14 @@ def evaluate_model(model, X_test, y_test, ticker_data, scalers, n_days=14):
      - err
      - MAPE
 
+    Calculates two baselines to compare the metrics to:
+     - baeline_flat: predicts the last known value
+     - baseline_last: predict the last difference for each next step
+
     :return: metrics
     """
     metrics = {}
+    preds = {}
 
     for ticker in ticker_data:
         # find first entry of ticker in test data
@@ -199,17 +222,32 @@ def evaluate_model(model, X_test, y_test, ticker_data, scalers, n_days=14):
                 start = idx
                 break
         y_pred = model.predict(X_test[start:start + n_days])
+        y_pred_flat, y_pred_last = base_predict(X_test[start:start + n_days])
 
         sc = scalers[ticker['name']]
+
         y_pred = inverse_scale_col(sc, y_pred)
+        y_pred_flat = inverse_scale_col(sc, y_pred_flat)
+        y_pred_last = inverse_scale_col(sc, y_pred_last)
         y = inverse_scale_col(sc, y_test[start:start + n_days])
+
+        preds[ticker['name']] = {
+            'y': y,
+            'y_pred': y_pred,
+            'y_flat': y_pred_flat,
+            'y_last': y_pred_last,
+        }
 
         metrics[ticker['name']] = {
             'err': [float(x) for x in list(y_pred - y)],
-            'MAPE': [float(x) for x in list(np.abs(y_pred - y) / y)]
+            'MAPE': [float(x) for x in list(np.abs(y_pred - y) / y)],
+            'err_base_flat': [float(x) for x in list(y_pred_flat - y)],
+            'MAPE_base_flat': [float(x) for x in list(np.abs(y_pred_flat - y) / y)],
+            'err_base_last': [float(x) for x in list(y_pred_last - y)],
+            'MAPE_base_last': [float(x) for x in list(np.abs(y_pred_last - y) / y)],
         }
 
-    return metrics
+    return metrics, preds
 
 
 def train(tickers, date_range, epochs):
@@ -232,15 +270,15 @@ def train(tickers, date_range, epochs):
 
     regressor = train_model(X_train, y_train, epochs)
 
-    metrics = evaluate_model(regressor, X_test, y_test, ticker_data, scalers)
+    metrics, preds = evaluate_model(regressor, X_test, y_test, ticker_data, scalers)
 
     # create target dir for output
     target_dir = os.path.join("output", str(int(time.time()*1000)))
     os.makedirs(target_dir, exist_ok=True)
 
     regressor.save(os.path.join(target_dir, "regressor_model"))
-    save_plots(regressor, X_test, y_test, ticker_data, scalers, target_dir)
-    save_log(tickers, date_range, start_time, metrics, epochs, target_dir)
+    save_plots(preds)
+    save_log(tickers, date_range, start_time, metrics, preds, epochs, target_dir)
 
 
 def parse_date(date_str):
