@@ -102,21 +102,22 @@ def prepare_data(df, test_fraction=0.2):
     return X_train, y_train, X_test, y_test, ticker_data, scalers
 
 
-def train_model(X_train, y_train, epochs):
+def train_model(X_train, y_train, epochs, n_lstm=4, dropout=0.2):
     """Creates and trains LSTM regressor model"""
+    if n_lstm < 2:
+        raise ValueError("n_lstm must be at least 2")
+
     regressor = Sequential()
 
     regressor.add(LSTM(units=50, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])))
-    regressor.add(Dropout(0.2))
+    regressor.add(Dropout(dropout))
 
-    regressor.add(LSTM(units=50, return_sequences=True))
-    regressor.add(Dropout(0.2))
-
-    regressor.add(LSTM(units=50, return_sequences=True))
-    regressor.add(Dropout(0.2))
+    for i in range(n_lstm-2):
+        regressor.add(LSTM(units=50, return_sequences=True))
+        regressor.add(Dropout(dropout))
 
     regressor.add(LSTM(units=50))
-    regressor.add(Dropout(0.2))
+    regressor.add(Dropout(dropout))
 
     regressor.add(Dense(units=1))
 
@@ -250,7 +251,7 @@ def evaluate_model(model, X_test, y_test, ticker_data, scalers, n_days=14):
     return metrics, preds
 
 
-def train(tickers, date_range, epochs):
+def train(tickers, date_range, epochs, n_lstm, dropout_ratio):
     """The main function
 
     Calls functions for the following steps:
@@ -261,6 +262,8 @@ def train(tickers, date_range, epochs):
     :param tickers: <list> ticker names corresponding to dataset
     :param date_range: <tuple of len 2> holds two datetime objects, start and end date
     :param epochs: <int> number of epochs to train for
+    :param n_lstm: <int> number of LSTM layers in the architecture
+    :param dropout_ratio: <float> dropout ratio
     :return:
     """
     start_time = time.time()
@@ -268,7 +271,7 @@ def train(tickers, date_range, epochs):
 
     X_train, y_train, X_test, y_test, ticker_data, scalers = prepare_data(df)
 
-    regressor = train_model(X_train, y_train, epochs)
+    regressor = train_model(X_train, y_train, epochs, n_lstm=n_lstm, dropout=dropout_ratio)
 
     metrics, preds = evaluate_model(regressor, X_test, y_test, ticker_data, scalers)
 
@@ -293,6 +296,10 @@ parser.add_argument('--dates', '-d', type=str,
                     help='start and end date for training data selection, separated by a comma')
 parser.add_argument('--epochs', '-e', type=int, default=60,
                     help='number of epochs to train for')
+parser.add_argument('--lstm', '-l', type=int, default=4,
+                    help='number of LSTM layers')
+parser.add_argument('--dropout', type=float, default=0.2,
+                    help='dropout ratio')
 
 if __name__ == "__main__":
     # Execute the parse_args() method
@@ -316,5 +323,19 @@ if __name__ == "__main__":
         date_range = parse_date(start_date), parse_date(end_date)
         print("Using date range:", date_range)
 
-    train(tickers, date_range, args.epochs)
+    if args.lstm is None:
+        n_lstm = 4
+        print("Using default number of LSTM layers:", n_lstm)
+    else:
+        n_lstm = args.lstm
+        print("Using number of LSTM layers:", n_lstm)
+
+    if args.dropout is None:
+        dropout_ratio = 0.2
+        print("Using default dropout ratio:", dropout_ratio)
+    else:
+        dropout_ratio = args.dropout
+        print("Using dropout ratio:", dropout_ratio)
+
+    train(tickers, date_range, args.epochs, n_lstm, dropout_ratio)
     reporting.create_html_report()

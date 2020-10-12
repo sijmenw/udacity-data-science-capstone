@@ -27,6 +27,9 @@ layout = [[sg.Text('Select stocks (up to 5)')],
           [sg.Text('Training start date (dd-mm-yyyy): '), sg.InputText(default_text="01-01-2015", key='start_date')],
           [sg.Text('Training end date (dd-mm-yyyy): '), sg.InputText(default_text="01-07-2017", key='end_date')],
           [sg.Text('_'*30)],
+          [sg.Text('Dropout ratio: '), sg.InputText(default_text="0.2", key='dropout_ratio')],
+          [sg.Text('Num LSTM layers: '), sg.InputText(default_text="4", key='num_lstm')],
+          [sg.Text('_'*30)],
           [sg.Text('Number of training epochs: '), sg.InputText(default_text="60", key='epochs')],
           [sg.Text('_'*30)],
           [sg.Button('Train!'), sg.Button('Exit')]]
@@ -47,10 +50,18 @@ while True:
     print(f"{values['start_date']} -> {values['end_date']}")
 
     if event == "Train!":
+        print("COMMAND LIST\n", ["python", "train.py",
+                          "--tickers", ",".join(tickers),
+                          "--dates", f"{values['start_date']},{values['end_date']}",
+                          "--epochs", str(values['epochs']),
+                          "--lstm", str(values['epochs']),
+                          "--dropout", str(values['dropout_ratio'])])
         subprocess.Popen(["python", "train.py",
                           "--tickers", ",".join(tickers),
                           "--dates", f"{values['start_date']},{values['end_date']}",
-                          "--epochs", str(values['epochs'])])
+                          "--epochs", str(values['epochs']),
+                          "--lstm", str(values['num_lstm']),
+                          "--dropout", str(values['dropout_ratio'])])
         window.close()
 
 window.close()
